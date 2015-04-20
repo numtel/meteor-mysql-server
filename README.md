@@ -1,8 +1,10 @@
-# numtel:mysql-server
+# numtel:mysql-server [![Build Status](https://travis-ci.org/numtel/meteor-mysql-server.svg?branch=master)](https://travis-ci.org/numtel/meteor-mysql-server)
 
 Package to run MySQL server inside your Meteor app
 
 ## Installation
+
+> Currently only supports Linux (32 and 64 bit) and Mac OSX (64 bit). Windows support is expected in the near future.
 
 Add this package to your application to embed a MySQL server:
 
