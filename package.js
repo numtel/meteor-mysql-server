@@ -33,6 +33,9 @@ if(process.mysqlNpmPkg === null) {
   var depend = {};
   depend[process.mysqlNpmPkg] = '5.6.24001';
 
+  // Give plugin access to bindEnvironment()
+  process.fiberHelpers = Npm.require('./fiber-helpers.js');
+
   Package.registerBuildPlugin({
     name: 'mysqlServer',
     use: [ ],
@@ -48,7 +51,11 @@ Npm.require('./cleanup.js').onExit(function StopMysqlServer() {
     // Only cleanup once!
     process.mysqlServerCleanedUp = true;
 
-    process.mysqld.stop();
+    try {
+      process.mysqld.stop();
+    } catch(err) {
+      console.log('[ERROR] Unable to stop MySQL server');
+    }
   }
 });
 
@@ -60,5 +67,6 @@ Package.onUse(function(api) {
 Package.onTest(function(api) {
   api.use('tinytest');
   api.use('numtel:mysql-server');
-  api.addFiles('mysql-server-tests.js');
+  api.addFiles('test.mysql.json', 'server');
+  api.addFiles('mysql-server-tests.js', 'server');
 });

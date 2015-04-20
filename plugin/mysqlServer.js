@@ -2,30 +2,51 @@ var DEBUG = false;
 
 var startMysql = Npm.require(process.mysqlNpmPkg);
 
-// Only start server once
-if(!('mysqld' in process)) {
-  process.mysqld = startMysql({ port: 3509 });
+Plugin.registerSourceHandler('mysql.json', {
+  archMatching: 'os'
+}, function (compileStep) {
+  var settings =
+    loadJSONContent(compileStep, compileStep.read().toString('utf8'));
 
-  process.mysqld.stderr.on('data', function (data) {
-    DEBUG && console.log('stderr: ', data.toString());
+  // Only start server once
+  if(!('mysqld' in process)) {
+    process.mysqld = startMysql(settings);
 
-    var failure = data.toString().match(
-      /Can't start server\: Bind on TCP\/IP port\: Address already in use/);
+    process.mysqld.stderr.on('data', process.fiberHelpers.bindEnvironment(
+    function (data) {
+      DEBUG && console.log('stderr: ', data.toString());
 
-    if(failure !== null) {
-      process.mysqlServerCleanedUp = true;
-      // Extra spaces for covering Meteor's status messages
-      console.log('=> MySQL startup failure: port in use.        ');
-    }
+      var failure = data.toString().match(
+        /Can't start server\: Bind on TCP\/IP port\: Address already in use/);
 
-    var ready = data.toString().match(
-      /port\: (\d+)\s+MySQL Community Server \(GPL\)/);
+      if(failure !== null) {
+        process.mysqlServerCleanedUp = true;
+        console.log('[ERROR] MySQL startup failure: port in use.   ');
+      }
 
-    if(ready !== null) {
-      process.mysqlServerReady = true;
-      // Extra spaces for covering Meteor's status messages
-      console.log('=> Started MySQL.                             ');
-    }
-  });
-}
+      var ready = data.toString().match(
+        /port\: (\d+)\s+MySQL Community Server \(GPL\)/);
 
+      if(ready !== null) {
+        process.mysqlServerReady = true;
+        // Extra spaces for covering Meteor's status messages
+        console.log('=> Started MySQL.                             ');
+      }
+    }));
+  }
+});
+
+// Begin code borrowed from mquandalle:bower/plugin/handler.js
+var loadJSONContent = function (compileStep, content) {
+  try {
+    return JSON.parse(content);
+  }
+  catch (e) {
+    compileStep.error({
+      message: "Syntax error in " + compileStep.inputPath,
+      line: e.line,
+      column: e.column
+    });
+  }
+};
+// End code from mquandalle:bower
