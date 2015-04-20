@@ -32,7 +32,6 @@ if(process.mysqlNpmPkg === null) {
 } else {
   var depend = {};
   depend[process.mysqlNpmPkg] = '5.6.24001';
-  Npm.depends(depend);
 
   Package.registerBuildPlugin({
     name: 'mysqlServer',
