@@ -44,7 +44,7 @@ if(process.mysqlNpmPkg === null) {
 }
 
 Npm.require('./cleanup.js').onExit(function StopMysqlServer() {
-  if(process.mysqlServerCleanedUp === false) {
+  if(process.mysqlServerCleanedUp === false && process.mysqld) {
     // Only cleanup once!
     process.mysqlServerCleanedUp = true;
 
