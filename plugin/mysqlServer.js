@@ -1,6 +1,10 @@
 var DEBUG = false;
 
-var startMysql = Npm.require(process.mysqlNpmPkg);
+var npmPkg = determinePlatformNpmPackage();
+// Should not happen as package.js should have filtered already
+if(npmPkg === null) return;
+
+var startMysql = Npm.require(npmPkg);
 
 Plugin.registerSourceHandler('mysql.json', {
   archMatching: 'os'
@@ -35,6 +39,16 @@ Plugin.registerSourceHandler('mysql.json', {
     }));
   }
 });
+
+function determinePlatformNpmPackage() {
+  switch(process.platform + '_' + process.arch) {
+    case 'linux_x64': return 'mysql-server-5.6-linux-x64';
+    case 'linux_ia32': return 'mysql-server-5.6-linux-i386';
+    case 'darwin_x64': return 'mysql-server-5.6-osx-x64';
+    default: return null;
+  }
+}
+
 
 // Begin code borrowed from mquandalle:bower/plugin/handler.js
 var loadJSONContent = function (compileStep, content) {

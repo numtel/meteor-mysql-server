@@ -2,7 +2,7 @@ var Future = Npm.require('fibers/future');
 
 Package.describe({
   name: 'numtel:mysql-server',
-  version: '0.0.1',
+  version: '0.0.3',
   summary: 'Run MySQL server inside your Meteor app',
   git: 'https://github.com/numtel/meteor-mysql-server',
   documentation: 'README.md'
@@ -16,6 +16,13 @@ function determinePlatformNpmPackage() {
     default: return null;
   }
 }
+
+// Force Meteor to recognize that this package has binary deps
+// bcrypt is an npm package that
+// has different binaries for differnet architectures.
+Npm.depends({
+  bcrypt: '0.8.2'
+});
 
 process.mysqlServerCleanedUp = false;
 process.mysqlServerReady = false;
