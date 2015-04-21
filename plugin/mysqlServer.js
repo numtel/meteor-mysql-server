@@ -1,22 +1,45 @@
 var DEBUG = false;
 
+var path = Npm.require('path');
+
+var mysqld;
+var cleanedUp = false;
+var serverReady = false;
+
+// With the mysql-server-xxx NPM dependency, cannot simply require files from
+//  meteor/tools directory because the Npm.require root directory has changed
+var toolDir = path.dirname(process.mainModule.filename);
+// Must correspond to name provided in package.js registerBuildPlugin
+var pluginNpmDir =
+  path.join(process.cwd(), '.npm/plugin/mysqlServer/node_modules');
+// Determine path relative to file system root "/"
+var rootRelPath =
+  pluginNpmDir.split('/').map(function() { return '..' }).join('/').slice(3);
+// Determine meteor/tools relative directory path
+var relToolDir = path.join(rootRelPath, toolDir);
+
+// For bindEnvironment()
+var fiberHelpers = Npm.require(path.join(relToolDir, 'fiber-helpers.js'));
+
 var npmPkg = determinePlatformNpmPackage();
 // Should not happen as package.js should have filtered already
 if(npmPkg === null) return;
 
+// Load mysql-server-xxx NPM package
 var startMysql = Npm.require(npmPkg);
 
+// Read settings from somefile.mysql.json
 Plugin.registerSourceHandler('mysql.json', {
   archMatching: 'os'
 }, function (compileStep) {
   var settings =
     loadJSONContent(compileStep, compileStep.read().toString('utf8'));
 
-  // Only start server once
-  if(!('mysqld' in process)) {
-    process.mysqld = startMysql(settings);
+  // Start server, but only once
+  if(!mysqld) {
+    mysqld = startMysql(settings);
 
-    process.mysqld.stderr.on('data', process.fiberHelpers.bindEnvironment(
+    mysqld.stderr.on('data', fiberHelpers.bindEnvironment(
     function (data) {
       DEBUG && console.log('stderr: ', data.toString());
 
@@ -24,7 +47,7 @@ Plugin.registerSourceHandler('mysql.json', {
         /Can't start server\: Bind on TCP\/IP port\: Address already in use/);
 
       if(failure !== null) {
-        process.mysqlServerCleanedUp = true;
+        cleanedUp = true;
         console.log('[ERROR] MySQL startup failure: port in use.   ');
       }
 
@@ -32,11 +55,26 @@ Plugin.registerSourceHandler('mysql.json', {
         /port\: (\d+)\s+MySQL Community Server \(GPL\)/);
 
       if(ready !== null) {
-        process.mysqlServerReady = true;
+        serverReady = true;
         // Extra spaces for covering Meteor's status messages
         console.log('=> Started MySQL.                             ');
       }
     }));
+  }
+});
+
+// Stop MySQL server on Meteor exit
+Npm.require(path.join(relToolDir, 'cleanup.js')).onExit(
+function StopMysqlServer() {
+  if(cleanedUp === false && mysqld) {
+    // Only cleanup once!
+    cleanedUp = true;
+
+    try {
+      mysqld.stop();
+    } catch(err) {
+      console.log('[ERROR] Unable to stop MySQL server');
+    }
   }
 });
 
