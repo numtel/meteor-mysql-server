@@ -36,13 +36,13 @@ Plugin.registerSourceHandler('mysql.json', {
     loadJSONContent(compileStep, compileStep.read().toString('utf8'));
 
   // Paths inside the application directory where database is to be stored
-  var dataDir = settings.datadir || 'private/mysqldb';
+  var dataDir = settings.datadir || '.meteor/mysqldb';
   var dataDirPath = path.join(process.cwd(), dataDir, 'mysql');
   var binlogDir = path.join(dataDir, 'binlog');
   var binlogDirPath = path.join(process.cwd(), binlogDir, 'mysql-bin.log');
   // Path where initial data comes from
   var initDataPath = path.join(startMysql.pkgdir(), 'server/data');
-  var initBinlogPath = path.join(initDataPath, '../../binlog');
+  var initBinlogPath = path.join(initDataPath, '../binlog');
 
   // Replace datadir value with updated path inside application directory
   settings.datadir = dataDirPath;

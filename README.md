@@ -14,7 +14,7 @@ meteor add numtel:mysql-server
 
 A settings file must be created with the extension of `.mysql.json` in your application. A file name like `myapp.mysql.json` is valid.
 
-If a `datadir` setting is not specified, the MySQL data will default to your application's `private/mysqldb` directory. The directory will be created if it does not exist.
+If a `datadir` setting is not specified, the MySQL data will default to your application's `.meteor/mysqldb` directory. The directory will be created if it does not exist.
 
 When specifying a `datadir` setting, the path is relative to your application root.
 
