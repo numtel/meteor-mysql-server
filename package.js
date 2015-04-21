@@ -1,6 +1,6 @@
 Package.describe({
   name: 'numtel:mysql-server',
-  version: '0.0.4',
+  version: '0.0.7',
   summary: 'Run MySQL server inside your Meteor app',
   git: 'https://github.com/numtel/meteor-mysql-server',
   documentation: 'README.md'
@@ -33,7 +33,7 @@ if(npmPkg === null) {
 
   Package.registerBuildPlugin({
     name: 'mysqlServer',
-    use: [ ],
+    use: [ 'underscore@1.0.3' ],
     sources: [
       'plugin/mysqlServer.js'
     ],

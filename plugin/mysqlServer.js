@@ -1,6 +1,7 @@
 var DEBUG = false;
 
 var path = Npm.require('path');
+var Future = Npm.require('fibers/future');
 
 var mysqld;
 var cleanedUp = false;
@@ -9,12 +10,8 @@ var serverReady = false;
 // With the mysql-server-xxx NPM dependency, cannot simply require files from
 //  meteor/tools directory because the Npm.require root directory has changed
 var toolDir = path.dirname(process.mainModule.filename);
-// Must correspond to name provided in package.js registerBuildPlugin
-var pluginNpmDir =
-  path.join(process.cwd(), '.npm/plugin/mysqlServer/node_modules');
-// Determine path relative to file system root "/"
-var rootRelPath =
-  pluginNpmDir.split('/').map(function() { return '..' }).join('/').slice(3);
+// Assume never more than 100 directories deep
+var rootRelPath = _.range(100).map(function() { return '..' }).join('/');
 // Determine meteor/tools relative directory path
 var relToolDir = path.join(rootRelPath, toolDir);
 
@@ -32,6 +29,7 @@ var startMysql = Npm.require(npmPkg);
 Plugin.registerSourceHandler('mysql.json', {
   archMatching: 'os'
 }, function (compileStep) {
+  var fut = new Future;
   var settings =
     loadJSONContent(compileStep, compileStep.read().toString('utf8'));
 
@@ -49,6 +47,7 @@ Plugin.registerSourceHandler('mysql.json', {
       if(failure !== null) {
         cleanedUp = true;
         console.log('[ERROR] MySQL startup failure: port in use.   ');
+        fut['return']();
       }
 
       var ready = data.toString().match(
@@ -58,9 +57,12 @@ Plugin.registerSourceHandler('mysql.json', {
         serverReady = true;
         // Extra spaces for covering Meteor's status messages
         console.log('=> Started MySQL.                             ');
+        fut['return']();
       }
     }));
   }
+
+  return fut.wait();
 });
 
 // Stop MySQL server on Meteor exit
