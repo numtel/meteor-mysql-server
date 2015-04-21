@@ -1,6 +1,9 @@
 var DEBUG = false;
+var MYSQLD_STARTUP_TIMEOUT = 10000;
 
 var path = Npm.require('path');
+var fs = Npm.require('fs');
+var shelljs = Npm.require('shelljs');
 var Future = Npm.require('fibers/future');
 
 var mysqld;
@@ -29,28 +32,85 @@ var startMysql = Npm.require(npmPkg);
 Plugin.registerSourceHandler('mysql.json', {
   archMatching: 'os'
 }, function (compileStep) {
-  var fut = new Future;
   var settings =
     loadJSONContent(compileStep, compileStep.read().toString('utf8'));
 
-  // Start server, but only once
+  // Paths inside the application directory where database is to be stored
+  var dataDir = settings.datadir || 'private/mysqldb';
+  var dataDirPath = path.join(process.cwd(), dataDir, 'mysql');
+  var binlogDir = path.join(dataDir, 'binlog');
+  var binlogDirPath = path.join(process.cwd(), binlogDir, 'mysql-bin.log');
+  // Path where initial data comes from
+  var initDataPath = path.join(startMysql.pkgdir(), 'server/data');
+  var initBinlogPath = path.join(initDataPath, '../../binlog');
+
+  // Replace datadir value with updated path inside application directory
+  settings.datadir = dataDirPath;
+  settings.log_bin = binlogDirPath;
+
+  // Initialize data directory if does not exists
+  try {
+    var dataDirStat = fs.statSync(dataDir)
+  } catch(err) {
+    // Directory does not exist, create it and copy initial data
+    shelljs.mkdir('-p', dataDir);
+    shelljs.cp('-R', initDataPath + '/*', dataDir);
+  }
+
+  if(dataDirStat && !dataDirStat.isDirectory()) {
+    // Name is occupied by file, cannot use this path as database directory
+    console.log('[ERROR] MySQL data directory unavailable.     ');
+    return;
+  }
+
+  // Recreate binlog directory if deleted (potentially to save space for transfer)
+  try {
+    var binlogDirStat = fs.statSync(binlogDir)
+  } catch(err) {
+    // Directory does not exist, create it and copy initial data
+    shelljs.mkdir('-p', binlogDir);
+    shelljs.cp('-R', initBinlogPath + '/*', binlogDir);
+  }
+
+  // Start server, but only once, wait for it to be ready (or not)
   if(!mysqld) {
+    var fut = new Future;
     mysqld = startMysql(settings);
+
+    // After preset timeout, give up waiting for MySQL to start or fail
+    setTimeout(fiberHelpers.bindEnvironment(function() {
+      if(!fut.isResolved()) {
+        console.log('[ERROR] MySQL startup timeout!                ');
+        fut['return']();
+      }
+    }), MYSQLD_STARTUP_TIMEOUT);
 
     mysqld.stderr.on('data', fiberHelpers.bindEnvironment(
     function (data) {
-      DEBUG && console.log('stderr: ', data.toString());
+      // Data never used as Buffer
+      data = data.toString();
+      DEBUG && console.log('stderr: ', data);
 
-      var failure = data.toString().match(
-        /Can't start server\: Bind on TCP\/IP port\: Address already in use/);
+      // No need to check more if server started already
+      if(fut.isResolved()) return;
 
-      if(failure !== null) {
-        cleanedUp = true;
-        console.log('[ERROR] MySQL startup failure: port in use.   ');
-        fut['return']();
+      // Check for any known errors
+      var errors = [
+        /Can't start server\: Bind on TCP\/IP port\: Address already in use/,
+        /Can't change dir to .+ \(Errcode\: 2 - No such file or directory\)/,
+        /Fatal error\: .+/
+      ];
+
+      for(var i = 0; i < errors.length; i++) {
+        var failure = data.match(errors[i]);
+        if(failure !== null) {
+          cleanedUp = true;
+          console.log('[ERROR] ' + failure[0]);
+          return fut['return']();
+        }
       }
 
-      var ready = data.toString().match(
+      var ready = data.match(
         /port\: (\d+)\s+MySQL Community Server \(GPL\)/);
 
       if(ready !== null) {
@@ -60,9 +120,10 @@ Plugin.registerSourceHandler('mysql.json', {
         fut['return']();
       }
     }));
+
+    return fut.wait();
   }
 
-  return fut.wait();
 });
 
 // Stop MySQL server on Meteor exit

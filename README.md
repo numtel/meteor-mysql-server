@@ -14,6 +14,12 @@ meteor add numtel:mysql-server
 
 A settings file must be created with the extension of `.mysql.json` in your application. A file name like `myapp.mysql.json` is valid.
 
+If a `datadir` setting is not specified, the MySQL data will default to your application's `private/mysqldb` directory. The directory will be created if it does not exist.
+
+When specifying a `datadir` setting, the path is relative to your application root.
+
+The binary log directory will be set as `binlog` child to the `datadir`. This directory may be excluded from your source code repository or cleared to free space. It is not necessary to manually specify the `log_bin` setting.
+
 See [`test.mysql.json`](test.mysql.json) for an example. Settings are used to build the `my.cnf` file. Specifying a port is recommended.
 
 Default settings provide the binary log in row mode, requiring no extra configuration to use the [`numtel:mysql` package](https://github.com/numtel/meteor-mysql). To view the default settings, see [`index.js` in the underlying NPM package](https://github.com/numtel/mysql-server-5.6-linux-x64/blob/master/index.js).
