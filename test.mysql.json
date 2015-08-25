@@ -1,4 +1,5 @@
 {
   "port": 3509,
-  "datadir": "testdb"
+  "datadir": "testdb",
+  "initialize": "test.init.sql"
 }

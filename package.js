@@ -1,6 +1,6 @@
 Package.describe({
   name: 'numtel:mysql-server',
-  version: '0.0.9',
+  version: '1.0.0',
   summary: 'Run MySQL server inside your Meteor app',
   git: 'https://github.com/numtel/meteor-mysql-server',
   documentation: 'README.md'
@@ -28,8 +28,12 @@ if(npmPkg === null) {
   console.error('ERROR: Platform is not supported by numtel:mysql-server!');
   console.error('       Supports only Linux (32 and 64 bit) and OSX (64 bit)');
 } else {
-  // shelljs for copying and creating data directories
-  var depend = { shelljs: '0.4.0' };
+  var depend = {
+    // shelljs for copying and creating data directories
+    shelljs: '0.4.0',
+    // mysql for initialization queries
+    mysql: '2.8.0'
+  };
   // platform dependent mysql-server-xxx package
   depend[npmPkg] = '5.6.24002';
 

@@ -5,6 +5,7 @@ var path = Npm.require('path');
 var fs = Npm.require('fs');
 var shelljs = Npm.require('shelljs');
 var Future = Npm.require('fibers/future');
+var mysql = Npm.require('mysql');
 
 var mysqld;
 var cleanedUp = false;
@@ -20,6 +21,7 @@ var relToolDir = path.join(rootRelPath, toolDir);
 
 // For bindEnvironment()
 var fiberHelpers = Npm.require(path.join(relToolDir, 'fiber-helpers.js'));
+var MBE = fiberHelpers.bindEnvironment;
 
 var npmPkg = determinePlatformNpmPackage();
 // Should not happen as package.js should have filtered already
@@ -28,6 +30,8 @@ if(npmPkg === null) return;
 // Load mysql-server-xxx NPM package
 var startMysql = Npm.require(npmPkg);
 
+var initializeServer = false;
+
 // Read settings from somefile.mysql.json
 Plugin.registerSourceHandler('mysql.json', {
   archMatching: 'os'
@@ -35,8 +39,14 @@ Plugin.registerSourceHandler('mysql.json', {
   var settings =
     loadJSONContent(compileStep, compileStep.read().toString('utf8'));
 
+  if(settings.initialize) {
+    var initQueries =
+      fs.readFileSync(path.join(process.cwd(), settings.initialize)).toString();
+    delete settings.initialize;
+  }
+
   // Paths inside the application directory where database is to be stored
-  var dataDir = settings.datadir || '.meteor/mysqldb';
+  var dataDir = settings.datadir || '.meteor/local/mysqldb';
   var dataDirPath = path.join(process.cwd(), dataDir, 'mysql');
   var binlogDir = path.join(dataDir, 'binlog');
   var binlogDirPath = path.join(process.cwd(), binlogDir, 'mysql-bin.log');
@@ -52,6 +62,7 @@ Plugin.registerSourceHandler('mysql.json', {
   try {
     var dataDirStat = fs.statSync(dataDir)
   } catch(err) {
+    initializeServer = true;
     // Directory does not exist, create it and copy initial data
     shelljs.mkdir('-p', dataDir);
     shelljs.cp('-R', initDataPath + '/*', dataDir);
@@ -78,15 +89,14 @@ Plugin.registerSourceHandler('mysql.json', {
     mysqld = startMysql(settings);
 
     // After preset timeout, give up waiting for MySQL to start or fail
-    setTimeout(fiberHelpers.bindEnvironment(function() {
+    setTimeout(MBE(function() {
       if(!fut.isResolved()) {
         console.log('[ERROR] MySQL startup timeout!                ');
         fut['return']();
       }
     }), MYSQLD_STARTUP_TIMEOUT);
 
-    mysqld.stderr.on('data', fiberHelpers.bindEnvironment(
-    function (data) {
+    mysqld.stderr.on('data', MBE(function (data) {
       // Data never used as Buffer
       data = data.toString();
       DEBUG && console.log('stderr: ', data);
@@ -117,7 +127,29 @@ Plugin.registerSourceHandler('mysql.json', {
         serverReady = true;
         // Extra spaces for covering Meteor's status messages
         console.log('=> Started MySQL.                             ');
-        fut['return']();
+
+        if(initializeServer && initQueries) {
+          // Perform initialization queries on new server installation
+          var db = mysql.createConnection({
+            host: 'localhost',
+            port: settings.port || 3306,
+            user: 'root',
+            password: '',
+            multipleStatements: true
+          });
+
+          db.connect(MBE(function(error) {
+            if(error) return fut['throw'](error);
+            console.log('[MySQL] Performing initialization queries...  ');
+            db.query(initQueries, MBE(function(error, rows) {
+              if(error) return fut['throw'](error);
+              db.destroy(); // Close connection
+              return fut['return']();
+            }));
+          }));
+        } else {
+          fut['return']();
+        }
       }
     }));
 
