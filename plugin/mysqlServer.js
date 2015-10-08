@@ -1,6 +1,21 @@
 var DEBUG = false;
 var MYSQLD_STARTUP_TIMEOUT = 10000;
 
+// In Meteor 1.2, the paths to the required tool files has changed,
+// if an error occurs loading the file, try the next set.
+var TOOL_PATHS = [
+  {
+    // Meteor < 1.2
+    fiberHelpers: 'fiber-helpers.js',
+    cleanup: 'cleanup.js'
+  },
+  {
+    // Meteor >= 1.2
+    fiberHelpers: 'utils/fiber-helpers.js',
+    cleanup: 'tool-env/cleanup.js'
+  }
+];
+
 var path = Npm.require('path');
 var fs = Npm.require('fs');
 var shelljs = Npm.require('shelljs');
@@ -11,6 +26,17 @@ var mysqld;
 var cleanedUp = false;
 var serverReady = false;
 
+function loadMeteorTool(whichTool, index) {
+  var dependency;
+  index = index || 0;
+  try {
+    dependency = Npm.require(path.join(relToolDir, TOOL_PATHS[index][whichTool]));
+  } catch (err) {
+    dependency = loadMeteorTool(whichTool, index + 1);
+  }
+  return dependency;
+}
+
 // With the mysql-server-xxx NPM dependency, cannot simply require files from
 //  meteor/tools directory because the Npm.require root directory has changed
 var toolDir = path.dirname(process.mainModule.filename);
@@ -20,7 +46,7 @@ var rootRelPath = _.range(100).map(function() { return '..' }).join('/');
 var relToolDir = path.join(rootRelPath, toolDir);
 
 // For bindEnvironment()
-var fiberHelpers = Npm.require(path.join(relToolDir, 'fiber-helpers.js'));
+var fiberHelpers = loadMeteorTool('fiberHelpers');
 var MBE = fiberHelpers.bindEnvironment;
 
 var npmPkg = determinePlatformNpmPackage();
@@ -159,8 +185,7 @@ Plugin.registerSourceHandler('mysql.json', {
 });
 
 // Stop MySQL server on Meteor exit
-Npm.require(path.join(relToolDir, 'cleanup.js')).onExit(
-function StopMysqlServer() {
+loadMeteorTool('cleanup').onExit(function StopMysqlServer() {
   if(cleanedUp === false && mysqld) {
     // Only cleanup once!
     cleanedUp = true;
