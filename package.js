@@ -1,6 +1,6 @@
 Package.describe({
   name: 'numtel:mysql-server',
-  version: '1.0.1',
+  version: '1.0.2',
   summary: 'Run MySQL server inside your Meteor app',
   git: 'https://github.com/numtel/meteor-mysql-server',
   documentation: 'README.md'
