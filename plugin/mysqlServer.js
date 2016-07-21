@@ -168,7 +168,7 @@ Plugin.registerSourceHandler('mysql.json', {
             if(error) return fut['throw'](error);
             console.log('[MySQL] Performing initialization queries...  ');
             db.query(initQueries, MBE(function(error, rows) {
-              if(error) return fut['throw'](error);
+              if(error) return fut['throw'](new Error(error.message));
               db.destroy(); // Close connection
               return fut['return']();
             }));
